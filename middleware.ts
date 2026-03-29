@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createMiddlewareSupabaseClient } from '@/lib/supabase/middleware'
 
-const PUBLIC_PATHS = ['/login', '/']
+const PUBLIC_PATHS = ['/login']
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
@@ -10,20 +10,21 @@ export async function middleware(request: NextRequest) {
 
   const supabase = createMiddlewareSupabaseClient(request, response)
 
-  const { data: { session } } = await supabase.auth.getSession()
+  // ✅ getUser() es más seguro que getSession() en middleware
+  const { data: { user } } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const isPublicPath = PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path))
 
-  // Sin sesión y ruta protegida → redirigir al login
-  if (!session && !isPublicPath) {
+  // ✅ Comparación exacta, sin startsWith('/')
+  const isPublicPath = PUBLIC_PATHS.includes(pathname)
+
+  if (!user && !isPublicPath) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Con sesión y va al login → redirigir al dashboard
-  if (session && pathname === '/login') {
+  if (user && pathname === '/login') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
