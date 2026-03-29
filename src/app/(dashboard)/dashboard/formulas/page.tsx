@@ -1,68 +1,75 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { FileText, Calendar } from "lucide-react";
+/**
+ * @file src/app/(dashboard)/dashboard/formulas/page.tsx
+ * @description Página de listado de fórmulas médicas. Server Component.
+ * @principle SRP - solo renderiza el listado de fórmulas
+ */
 
-export default async function FormulasPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase
-    .from("formulas")
-    .select(`
-      formulaid, fecha,
-      tratamientos(tratamientoid, visitas(visitaid)),
-      detallesformulas(
-        detalleid, presentacion, posologia, periodouso, periodicidaduso,
-        medicamentos(nombre, unidades)
-      )
-    `)
-    .order("fecha", { ascending: false });
+import { FormulaRepository } from '@/modules/formulas/formula.repository'
+import { FormulaService } from '@/modules/formulas/formula.service'
+
+export const metadata = { title: 'Fórmulas Médicas' }
+
+const formulaService = new FormulaService(new FormulaRepository())
+
+export default async function FormulasPage({
+  searchParams,
+}: {
+  searchParams: { tratamientoId?: string }
+}) {
+  const tratamientoId = Number(searchParams?.tratamientoId ?? 1)
+  const result = await formulaService.getByTratamiento(tratamientoId)
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="mb-1">Formulas Medicas</h1>
-        <p className="text-gray-500">Recetas medicas emitidas</p>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-          Error: {error.message}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Fórmulas Médicas</h1>
+          <p className="text-sm text-gray-500 mt-1">Recetas con medicamentos asociados</p>
         </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {(data || []).map((f: any) => (
-          <div key={f.formulaid} className="card hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <FileText size={20} className="text-purple-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Formula #{f.formulaid}</h3>
-                <span className="flex items-center gap-1 text-xs text-gray-500">
-                  <Calendar size={12} />
-                  {f.fecha}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              {(f.detallesformulas || []).map((d: any) => (
-                <div key={d.detalleid} className="bg-gray-50 rounded-lg p-3 text-sm">
-                  <p className="font-medium text-gray-900">{d.medicamentos?.nombre}</p>
-                  <p className="text-gray-500">{d.posologia}</p>
-                  <p className="text-xs text-gray-400">Periodo: {d.periodouso} — Cada: {d.periodicidaduso}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
       </div>
 
-      {(!data || data.length === 0) && !error && (
+      {!result.success ? (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-6">
+          <p className="text-red-600 text-sm">{result.error}</p>
+        </div>
+      ) : result.data?.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          <FileText size={48} className="mx-auto mb-4 opacity-30" />
-          <p>No hay formulas registradas.</p>
+          <p className="text-lg">No hay fórmulas registradas para este tratamiento</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {result.data?.map((formula) => (
+            <div key={formula.formulaid} className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-semibold text-gray-800">
+                  Fórmula #{formula.formulaid}
+                </span>
+                <span className="text-sm text-gray-500">{formula.fecha}</span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="pb-2">Medicamento</th>
+                    <th className="pb-2">Presentación</th>
+                    <th className="pb-2">Posología</th>
+                    <th className="pb-2">Período</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {formula.detalles.map((d) => (
+                    <tr key={d.detalleid} className="border-b last:border-0">
+                      <td className="py-2 font-medium text-gray-800">{d.medicamento.nombre}</td>
+                      <td className="py-2 text-gray-600">{d.presentacion}</td>
+                      <td className="py-2 text-gray-600">{d.posologia}</td>
+                      <td className="py-2 text-gray-600">{d.periodoUso}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
+  )
 }
